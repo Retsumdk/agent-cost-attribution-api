@@ -1,51 +1,77 @@
 #!/usr/bin/env bun
-/**
- * agent-cost-attribution-api - Granular cost tracking attributing LLM spend to specific user intents or projects
- * Built by Retsumdk
- */
-
 import { Command } from "commander";
-import { existsSync, readFileSync } from "fs";
+import { serve } from "bun";
+import { createApi } from "./api";
+import { CostTracker } from "./tracker";
+import { Storage } from "./storage";
 import { join } from "path";
 
-interface Config {
-  apiKey?: string;
-  baseUrl: string;
-  timeout: number;
-  retries: number;
-}
-
-const DEFAULTS: Config = {
-  baseUrl: "https://api.example.com",
-  timeout: 30000,
-  retries: 3,
-};
-
-function loadConfig(): Config {
-  const cfgPath = join(process.cwd(), "config.json");
-  if (existsSync(cfgPath)) {
-    try {
-      return { ...DEFAULTS, ...JSON.parse(readFileSync(cfgPath, "utf-8")) };
-    } catch { /* ignore */ }
-  }
-  return { ...DEFAULTS };
-}
-
-async function main(cfg: Config) {
-  console.log(`[${name}] Connected to ${cfg.baseUrl}`);
-  console.log(`[${name}] Timeout: ${cfg.timeout}ms | Retries: ${cfg.retries}`);
-  // TODO: implement your logic here
-  console.log(`[${name}] Done.`);
-}
-
 const program = new Command();
-program.name("agent-cost-attribution-api").description("Granular cost tracking attributing LLM spend to specific user intents or projects").version("1.0.0")
-  .option("-c, --config <path>", "Config file path", "config.json")
-  .option("-v, --verbose", "Verbose mode")
-  .action(async (opts) => {
-    const cfg = loadConfig();
-    if (opts.verbose) console.log("Verbose mode on");
-    try { await main(cfg); }
-    catch (e) { console.error(`Error: ${e}`); process.exit(1); }
+
+program
+  .name("agent-cost-attribution-api")
+  .description("Granular cost tracking attributing LLM spend to specific user intents or projects")
+  .version("1.0.0");
+
+program
+  .command("serve")
+  .description("Start the cost attribution API server")
+  .option("-p, --port <number>", "Port to listen on", "3000")
+  .option("-d, --data <dir>", "Directory to store data", "./data")
+  .action((options) => {
+    const port = parseInt(options.port);
+    const dataDir = options.data;
+    
+    // Ensure data directory exists
+    const fs = require("fs");
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    const storage = new Storage(dataDir);
+    const tracker = new CostTracker(storage);
+    const app = createApi(tracker);
+
+    console.log(`🚀 Server starting on port ${port}...`);
+    serve({
+      fetch: app.fetch,
+      port: port,
+    });
   });
+
+program
+  .command("clear")
+  .description("Clear all tracked records")
+  .option("-d, --data <dir>", "Directory where data is stored", "./data")
+  .action((options) => {
+    const storage = new Storage(options.data);
+    storage.clear();
+    console.log("✅ All records cleared.");
+  });
+
+program
+  .command("report")
+  .description("Generate a quick report in the console")
+  .option("-d, --data <dir>", "Directory where data is stored", "./data")
+  .action((options) => {
+    const storage = new Storage(options.data);
+    const tracker = new CostTracker(storage);
+    const summary = tracker.getFullSummary();
+
+    console.log("\n📊 AGENT COST ATTRIBUTION REPORT");
+    console.log("================================");
+    console.log(`Total Records: ${summary.recordCount}`);
+    console.log(`Total Cost:    $${summary.totalCost.toFixed(6)}`);
+    console.log(`Total Tokens:  ${(summary.totalInputTokens + summary.totalOutputTokens).toLocaleString()}`);
+    console.log("\nBreakdown by Model:");
+    for (const [model, data] of Object.entries(summary.byModel)) {
+      console.log(`- ${model.padEnd(20)}: $${data.cost.toFixed(6)} (${data.tokens.toLocaleString()} tokens)`);
+    }
+    console.log("================================\n");
+  });
+
 program.parse(process.argv);
+
+if (!process.argv.slice(2).length) {
+  program.outputHelp();
+}

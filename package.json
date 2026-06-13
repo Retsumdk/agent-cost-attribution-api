@@ -3,15 +3,23 @@
   "description": "Granular cost tracking attributing LLM spend to specific user intents or projects",
   "version": "1.0.0",
   "type": "module",
+  "bin": {
+    "agent-cost-attribution": "./src/index.ts"
+  },
   "scripts": {
+    "start": "bun src/index.ts serve",
     "test": "bun test",
-    "build": "tsc"
+    "build": "tsc",
+    "report": "bun src/index.ts report"
   },
   "dependencies": {
-    "commander": "^11.1.0"
+    "commander": "^11.1.0",
+    "hono": "^4.0.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "bun-types": "^1.0.0",
+    "@types/uuid": "^9.0.8",
     "typescript": "^5.3.0"
   }
 }
