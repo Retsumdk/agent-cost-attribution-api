@@ -1,7 +1,7 @@
 import { expect, test, describe, beforeEach, afterEach } from "bun:test";
 import { CostTracker } from "../src/tracker";
 import { Storage } from "../src/storage";
-import { calculateCost } from "../src/models";
+import { calculateCost, tryCalculateCost, PRICING_AS_OF, PricingError } from "../src/models";
 import { rmSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 
@@ -24,6 +24,13 @@ describe("Cost Attribution API", () => {
     if (existsSync(TEST_DATA_DIR)) {
       rmSync(TEST_DATA_DIR, { recursive: true, force: true });
     }
+  });
+
+  test("Unknown models refuse silent fallback billing", () => {
+    expect(() => calculateCost("gpt-5-imaginary", 1000, 1000)).toThrow(PricingError);
+    expect(tryCalculateCost("gpt-5-imaginary", 1000, 1000)).toBeNull();
+    expect(tryCalculateCost("gpt-4o", 1000000, 0)).toBe(5);
+    expect(PRICING_AS_OF).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   test("Cost calculation logic", () => {

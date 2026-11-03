@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { CostTracker } from "./tracker";
+import { PRICING_AS_OF, PricingError } from "./models";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
 
@@ -9,7 +10,7 @@ export function createApi(tracker: CostTracker) {
   app.use("*", logger());
   app.use("*", prettyJSON());
 
-  app.get("/health", (c) => c.json({ status: "ok" }));
+  app.get("/health", (c) => c.json({ status: "ok", pricingAsOf: PRICING_AS_OF }));
 
   // Track new usage
   app.post("/track", async (c) => {
@@ -33,6 +34,9 @@ export function createApi(tracker: CostTracker) {
 
       return c.json({ success: true, record });
     } catch (e) {
+      if (e instanceof PricingError) {
+        return c.json({ error: e.message, pricingAsOf: PRICING_AS_OF }, 422);
+      }
       return c.json({ error: String(e) }, 500);
     }
   });
@@ -40,7 +44,7 @@ export function createApi(tracker: CostTracker) {
   // Get summaries
   app.get("/summary", (c) => {
     const summary = tracker.getFullSummary();
-    return c.json(summary);
+    return c.json({ ...summary, pricingAsOf: PRICING_AS_OF });
   });
 
   app.get("/summary/project/:id", (c) => {

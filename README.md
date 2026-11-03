@@ -5,7 +5,7 @@ Granular cost tracking attributing LLM spend to specific user intents or project
 ## Features
 
 - **Granular Attribution**: Track costs by `projectId`, `intentId`, and `userId`.
-- **Multi-Model Support**: Built-in pricing for GPT-4, GPT-3.5, Claude 3, Gemini 1.5, and Llama 3.
+- **Multi-Model Support**: Built-in pricing for GPT-4, GPT-3.5, Claude 3, Gemini 1.5, and Llama 3. Prices are captured list prices as of `PRICING_AS_OF` (2024-03-01) and are exposed on every `/summary` response as `pricingAsOf` — treat reports as vintage-dated, not current market rates. Unknown models raise a `PricingError` (HTTP 422 on `/track`) instead of silently billing at another model's rate; use `tryCalculateCost` where a null estimate is acceptable.
 - **Persistent Storage**: Robust JSON-based storage for cost records.
 - **Reporting API**: Summaries and filtered record retrieval.
 - **CLI Interface**: Start the server or generate reports from the command line.

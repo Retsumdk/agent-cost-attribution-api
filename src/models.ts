@@ -1,7 +1,23 @@
 /**
- * Supported LLM models and their pricing (USD per 1M tokens)
- * Prices as of early 2024 benchmarks.
+ * Supported LLM models and their pricing (USD per 1M tokens).
+ *
+ * Prices are hard-coded list prices captured as of PRICING_AS_OF (early-2024
+ * benchmarks). Every cost report built on this table inherits that vintage:
+ * consumers should surface `PRICING_AS_OF` (the API exposes it on /health and
+ * every /summary response as `pricingAsOf`) rather than presenting stale
+ * numbers as current market rates.
  */
+
+/** Date (ISO) of the last manual capture of PRICING_DATA. */
+export const PRICING_AS_OF = "2024-03-01";
+
+/** Thrown when a cost is requested for a model outside PRICING_DATA. */
+export class PricingError extends Error {
+  constructor(modelId: string) {
+    super(`unknown model "${modelId}" — no pricing entry; refusing to bill silently`);
+    this.name = "PricingError";
+  }
+}
 
 export interface ModelPricing {
   id: string;
@@ -63,8 +79,19 @@ export const PRICING_DATA: Record<string, ModelPricing> = {
 };
 
 export function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = PRICING_DATA[model] || PRICING_DATA["gpt-3.5-turbo"]; // Default to 3.5 turbo if unknown
+  const pricing = PRICING_DATA[model];
+  if (!pricing) throw new PricingError(model);
   const inputCost = (inputTokens / 1_000_000) * pricing.inputCost;
   const outputCost = (outputTokens / 1_000_000) * pricing.outputCost;
   return inputCost + outputCost;
+}
+
+/**
+ * Best-effort variant: returns null instead of throwing when the model has no
+ * pricing entry. Use this only where a missing estimate is acceptable —
+ * billing paths should surface PricingError instead of under-billing.
+ */
+export function tryCalculateCost(model: string, inputTokens: number, outputTokens: number): number | null {
+  if (!PRICING_DATA[model]) return null;
+  return calculateCost(model, inputTokens, outputTokens);
 }
